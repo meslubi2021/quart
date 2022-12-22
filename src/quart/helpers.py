@@ -288,7 +288,10 @@ async def send_from_directory(
 
     See :func:`send_file` for the other arguments.
     """
-    file_path = Path(safe_join(str(directory), file_name))
+    raw_file_path = safe_join(str(directory), file_name)
+    if raw_file_path is None:
+        raise NotFound()
+    file_path = Path(raw_file_path)
     if not file_path.is_file():
         raise NotFound()
     return await send_file(
@@ -330,7 +333,7 @@ async def send_file(
 
     """
     file_body: ResponseBody
-    file_size: int
+    file_size: Optional[int] = None
     etag: Optional[str] = None
     if isinstance(filename_or_io, BytesIO):
         file_body = current_app.response_class.io_body_class(filename_or_io)
@@ -374,7 +377,7 @@ async def send_file(
         response.set_etag(etag)
 
     if conditional:
-        await response.make_conditional(request.range)
+        await response.make_conditional(request, accept_ranges=True, complete_length=file_size)
     return response
 
 

@@ -1,3 +1,59 @@
+0.18.3 2022-10-08
+-----------------
+
+* Fixed Issue #206. Corrected quart.json.loads type annotation.
+* Bugfix signal handling on Windows.
+* Bugfix add missing globals to Flask-Patch.
+
+0.18.2 2022-10-04
+-----------------
+
+* Bugfix use add_signal_handler not signal.signal.
+
+0.18.1 2022-10-03
+-----------------
+
+* Bugfix static hosting with resource path escaping the root.
+* Bugfix adopt the Werkzeug/Flask make_conditional API/functionality.
+* Bugfix restore the reloader to Quart.
+* Bugfix support subdomains when testing.
+* Bugfix the signal handling to work on Windows.
+
+0.18.0 2022-07-23
+-----------------
+
+* Remove Quart's safe_join, use Werkzeug's version instead.
+* Drop toml dependency, as it isn't required in Quart (use
+  config.from_file as desired).
+* Change websocket.send_json to match jsonify's options.
+* Allow while serving decorators on blueprints.
+* Support synchronous background tasks, they will be run on a thread.
+* Follow Flask's API an allow empty argument Response construction.
+* Add get_root_path to helpers to match Flask.
+* Support silent argument in config.from_envvar.
+* Adopt Flask's logging setup.
+* Add stream_template and stream_template_string functions to stream a
+  large template in parts.
+* Switch to Flask's top level name exportion style.
+* Add aborter object to app to allow for abort customisation.
+* Add redirect method to app to allow for redirect customisation.
+* Remove usage of LocalStacks, using ContextVars more directly. This
+  should improve performance, but introduces backwards
+  incompatibility. _*_ctx_stack globals are removed, use *_context
+  instead. Extensions should store on ``g`` as appropriate. Requires
+  Werkzeug >= 2.2.0.
+* Returned lists are now jsonified.
+* Move url_for to the app to allow for url_for customisation.
+* Remove config from_json use from_file instead.
+* Match the Flask views classes and API.
+* Adopt the Flask cli code adding ``--app``, ``--env``, and ``-debug``
+  options to the CLI.
+* Adopt the Flask JSON provider interface, use instead of JSON
+  encoders and decoders.
+* Switch to being a Pallets project.
+* Requires at least v8 of click.
+
+
 0.17.0 2022-03-26
 -----------------
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import platform
 import signal
 import sys
 import warnings
@@ -76,7 +77,7 @@ from .helpers import (
     get_env,
     get_flashed_messages,
 )
-from .json import dumps, JSONDecoder, JSONEncoder, jsonify
+from .json.provider import DefaultJSONProvider, JSONProvider
 from .logging import create_logger
 from .routing import QuartMap, QuartRule
 from .scaffold import _endpoint_from_view_func, Scaffold, setupmethod
@@ -126,7 +127,14 @@ from .typing import (
     TestClientProtocol,
     WhileServingCallable,
 )
-from .utils import file_path_to_path, is_coroutine_function, run_sync
+from .utils import (
+    file_path_to_path,
+    is_coroutine_function,
+    MustReloadError,
+    observe_changes,
+    restart,
+    run_sync,
+)
 from .wrappers import BaseRequestWebsocket, Request, Response, Websocket
 
 AppOrBlueprintKey = Optional[str]  # The App key is None, whereas blueprints are named
@@ -178,8 +186,6 @@ class Quart(Scaffold):
         jinja_environment: The class to use for the jinja environment.
         jinja_options: The default options to set when creating the jinja
             environment.
-        json_decoder: The decoder for JSON data.
-        json_encoder: The encoder for JSON data.
         permanent_session_lifetime: Wrapper around configuration
             PERMANENT_SESSION_LIFETIME value. Specifies how long the session
             data should survive.
@@ -212,8 +218,7 @@ class Quart(Scaffold):
     env = ConfigAttribute("ENV")
     jinja_environment = Environment
     jinja_options: dict = {}
-    json_decoder = JSONDecoder
-    json_encoder = JSONEncoder
+    json_provider_class: Type[JSONProvider] = DefaultJSONProvider
     lock_class = asyncio.Lock
     permanent_session_lifetime = ConfigAttribute(
         "PERMANENT_SESSION_LIFETIME", converter=_convert_timedelta
@@ -291,6 +296,7 @@ class Quart(Scaffold):
         self.before_serving_funcs: List[Callable[[], Awaitable[None]]] = []
         self.blueprints: Dict[str, Blueprint] = OrderedDict()
         self.extensions: Dict[str, Any] = {}
+        self.json: JSONProvider = self.json_provider_class(self)
         self.shell_context_processors: List[Callable[[], Dict[str, Any]]] = []
         self.teardown_appcontext_funcs: List[TeardownCallable] = []
         self.url_build_error_handlers: List[Callable[[Exception, str, dict], str]] = []
@@ -462,7 +468,7 @@ class Quart(Scaffold):
                 "url_for": self.url_for,
             }
         )
-        jinja_env.policies["json.dumps_function"] = dumps
+        jinja_env.policies["json.dumps_function"] = self.json.dumps
         return jinja_env
 
     def create_global_jinja_loader(self) -> DispatchingJinjaLoader:
@@ -473,7 +479,7 @@ class Quart(Scaffold):
         """Returns True if the filename indicates that it should be escaped."""
         if filename is None:
             return True
-        return Path(filename).suffix in {".htm", ".html", ".xhtml", ".xml"}
+        return Path(filename).suffix in {".htm", ".html", ".svg", ".xhtml", ".xml"}
 
     async def update_template_context(self, context: dict) -> None:
         """Update the provided template context.
@@ -1366,11 +1372,13 @@ class Quart(Scaffold):
         def _signal_handler(*_: Any) -> None:
             shutdown_event.set()
 
-        try:
-            loop.add_signal_handler(signal.SIGTERM, _signal_handler)
-            loop.add_signal_handler(signal.SIGINT, _signal_handler)
-        except (AttributeError, NotImplementedError):
-            pass
+        for signal_name in {"SIGINT", "SIGTERM", "SIGBREAK"}:
+            if hasattr(signal, signal_name):
+                try:
+                    loop.add_signal_handler(getattr(signal, signal_name), _signal_handler)
+                except NotImplementedError:
+                    # Add signal handler may not be implemented on Windows
+                    signal.signal(getattr(signal, signal_name), _signal_handler)
 
         server_name = self.config.get("SERVER_NAME")
         sn_host = None
@@ -1388,7 +1396,6 @@ class Quart(Scaffold):
             host,
             port,
             debug,
-            use_reloader,
             ca_certs,
             certfile,
             keyfile,
@@ -1404,8 +1411,18 @@ class Quart(Scaffold):
         scheme = "https" if certfile is not None and keyfile is not None else "http"
         print(f" * Running on {scheme}://{host}:{port} (CTRL + C to quit)")  # noqa: T201
 
+        tasks = [loop.create_task(task)]
+        if platform.system() == "Windows":
+            tasks.append(loop.create_task(_windows_signal_support()))
+
+        if use_reloader:
+            tasks.append(loop.create_task(observe_changes(asyncio.sleep, shutdown_event)))
+
+        reload_ = False
         try:
-            loop.run_until_complete(task)
+            loop.run_until_complete(asyncio.gather(*tasks))
+        except MustReloadError:
+            reload_ = True
         finally:
             try:
                 _cancel_all_tasks(loop)
@@ -1414,12 +1431,14 @@ class Quart(Scaffold):
                 asyncio.set_event_loop(None)
                 loop.close()
 
+        if reload_:
+            restart()
+
     def run_task(
         self,
         host: str = "127.0.0.1",
         port: int = 5000,
         debug: Optional[bool] = None,
-        use_reloader: bool = True,
         ca_certs: Optional[str] = None,
         certfile: Optional[str] = None,
         keyfile: Optional[str] = None,
@@ -1435,7 +1454,6 @@ class Quart(Scaffold):
                 only, use 0.0.0.0 to have the server listen externally.
             port: Port number to listen on.
             debug: If set enable (or disable) debug mode and debug output.
-            use_reloader: Automatically reload on code changes.
             ca_certs: Path to the SSL CA certificate file.
             certfile: Path to the SSL certificate file.
             keyfile: Path to the SSL key file.
@@ -1451,7 +1469,6 @@ class Quart(Scaffold):
             self.debug = debug
         config.errorlog = config.accesslog
         config.keyfile = keyfile
-        config.use_reloader = use_reloader
 
         return serve(self, config, shutdown_trigger=shutdown_trigger)
 
@@ -1474,6 +1491,7 @@ class Quart(Scaffold):
         http_version: str = "1.1",
         scope_base: Optional[dict] = None,
         auth: Optional[Union[Authorization, Tuple[str, str]]] = None,
+        subdomain: Optional[str] = None,
     ) -> RequestContext:
         """Create a request context for testing purposes.
 
@@ -1500,6 +1518,7 @@ class Quart(Scaffold):
             headers,
             query_string,
             auth,
+            subdomain,
         )
         request_body, body_headers = make_test_body_with_headers(data=data, form=form, json=json)
         headers.update(**body_headers)
@@ -1611,7 +1630,7 @@ class Quart(Scaffold):
             ):
                 response = self.response_class(value)  # type: ignore
             elif isinstance(value, (list, dict)):
-                response = jsonify(value)
+                response = self.json.response(value)
             else:
                 raise TypeError(f"The response value type ({type(value).__name__}) is not valid")
         else:
@@ -1805,7 +1824,7 @@ class Quart(Scaffold):
 
     async def dispatch_websocket(
         self, websocket_context: Optional[WebsocketContext] = None
-    ) -> None:
+    ) -> Optional[ResponseReturnValue]:
         """Dispatch the websocket to the view function.
 
         Arguments:
@@ -1960,3 +1979,11 @@ def _cancel_all_tasks(loop: asyncio.AbstractEventLoop) -> None:
                     "task": task,
                 }
             )
+
+
+async def _windows_signal_support() -> None:
+    # See https://bugs.python.org/issue23057, to catch signals on
+    # Windows it is necessary for an IO event to happen periodically.
+    # Fixed by Python 3.8
+    while True:
+        await asyncio.sleep(1)

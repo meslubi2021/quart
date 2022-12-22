@@ -8,6 +8,8 @@ here,
 
 - `Quart-Auth <https://github.com/pgjones/quart-auth>`_ Secure cookie
   sessions, allows login, authentication and logout.
+- `Quart-Babel <https://github.com/Quart-Addons/quart-babel>`_ Implements i18n and l10n support for Quart. 
+- `Quart-Bcrypt <https://github.com/Quart-Addons/quart-bcrypt>`_ Provides bcrypt hashing utilities for your application.
 - `Quart-compress <https://github.com/AceFire6/quart-compress>`_
   compress your application's responses with gzip.
 - `Quart-compress2
@@ -27,8 +29,8 @@ here,
   (MongoDB) support for Quart applications.
 - `Quart-OpenApi <https://github.com/factset/quart-openapi/>`_ RESTful
   API building.
-- `Quart-Session-OpenID <https://github.com/sanderfoobar/quart-session-openid>`_
-  Support for OAuth2 OpenID Connect (OIDC).
+- `Quart-Keycloak <https://github.com/kroketio/quart-keycloak>`_
+  Support for Keycloak's OAuth2 OpenID Connect (OIDC).
 - `Quart-Rapidoc <https://github.com/marirs/quart-rapidoc>`_ API
   documentation from OpenAPI Specification.
 - `Quart-Rate-Limiter
@@ -40,7 +42,7 @@ here,
   validation and auto-generated API documentation.
 - `Quart-session <https://github.com/sanderfoobar/quart-session>`_ server
   side session support.
-
+- `Quart-Uploads <https://github.com/Quart-Addons/quart-uploads>`_ File upload handling for Quart. 
 
 Supporting sync code in a Quart Extension
 -----------------------------------------
