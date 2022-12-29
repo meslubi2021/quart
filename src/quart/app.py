@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import platform
 import signal
 import sys
 import warnings
@@ -478,7 +479,7 @@ class Quart(Scaffold):
         """Returns True if the filename indicates that it should be escaped."""
         if filename is None:
             return True
-        return Path(filename).suffix in {".htm", ".html", ".xhtml", ".xml"}
+        return Path(filename).suffix in {".htm", ".html", ".svg", ".xhtml", ".xml"}
 
     async def update_template_context(self, context: dict) -> None:
         """Update the provided template context.
@@ -1371,11 +1372,13 @@ class Quart(Scaffold):
         def _signal_handler(*_: Any) -> None:
             shutdown_event.set()
 
-        try:
-            loop.add_signal_handler(signal.SIGTERM, _signal_handler)
-            loop.add_signal_handler(signal.SIGINT, _signal_handler)
-        except (AttributeError, NotImplementedError):
-            pass
+        for signal_name in {"SIGINT", "SIGTERM", "SIGBREAK"}:
+            if hasattr(signal, signal_name):
+                try:
+                    loop.add_signal_handler(getattr(signal, signal_name), _signal_handler)
+                except NotImplementedError:
+                    # Add signal handler may not be implemented on Windows
+                    signal.signal(getattr(signal, signal_name), _signal_handler)
 
         server_name = self.config.get("SERVER_NAME")
         sn_host = None
@@ -1409,6 +1412,9 @@ class Quart(Scaffold):
         print(f" * Running on {scheme}://{host}:{port} (CTRL + C to quit)")  # noqa: T201
 
         tasks = [loop.create_task(task)]
+        if platform.system() == "Windows":
+            tasks.append(loop.create_task(_windows_signal_support()))
+
         if use_reloader:
             tasks.append(loop.create_task(observe_changes(asyncio.sleep, shutdown_event)))
 
@@ -1485,6 +1491,7 @@ class Quart(Scaffold):
         http_version: str = "1.1",
         scope_base: Optional[dict] = None,
         auth: Optional[Union[Authorization, Tuple[str, str]]] = None,
+        subdomain: Optional[str] = None,
     ) -> RequestContext:
         """Create a request context for testing purposes.
 
@@ -1511,6 +1518,7 @@ class Quart(Scaffold):
             headers,
             query_string,
             auth,
+            subdomain,
         )
         request_body, body_headers = make_test_body_with_headers(data=data, form=form, json=json)
         headers.update(**body_headers)
@@ -1971,3 +1979,11 @@ def _cancel_all_tasks(loop: asyncio.AbstractEventLoop) -> None:
                     "task": task,
                 }
             )
+
+
+async def _windows_signal_support() -> None:
+    # See https://bugs.python.org/issue23057, to catch signals on
+    # Windows it is necessary for an IO event to happen periodically.
+    # Fixed by Python 3.8
+    while True:
+        await asyncio.sleep(1)

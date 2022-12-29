@@ -1,3 +1,24 @@
+0.18.3 2022-10-08
+-----------------
+
+* Fixed Issue #206. Corrected quart.json.loads type annotation.
+* Bugfix signal handling on Windows.
+* Bugfix add missing globals to Flask-Patch.
+
+0.18.2 2022-10-04
+-----------------
+
+* Bugfix use add_signal_handler not signal.signal.
+
+0.18.1 2022-10-03
+-----------------
+
+* Bugfix static hosting with resource path escaping the root.
+* Bugfix adopt the Werkzeug/Flask make_conditional API/functionality.
+* Bugfix restore the reloader to Quart.
+* Bugfix support subdomains when testing.
+* Bugfix the signal handling to work on Windows.
+
 0.18.0 2022-07-23
 -----------------
 
