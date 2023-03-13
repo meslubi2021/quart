@@ -9,13 +9,15 @@ from typing import (
     AnyStr,
     AsyncContextManager,
     AsyncGenerator,
+    AsyncIterator,
     Awaitable,
     Callable,
     Dict,
-    Generator,
+    Iterator,
     List,
     Mapping,
     Optional,
+    Sequence,
     Tuple,
     Type,
     TYPE_CHECKING,
@@ -30,13 +32,15 @@ from hypercorn.typing import (
     WebsocketScope,
 )
 
+from .datastructures import FileStorage
+
 try:
     from typing import Protocol
 except ImportError:
     from typing_extensions import Protocol  # type: ignore
 
 if TYPE_CHECKING:
-    from werkzeug.datastructures import Headers  # noqa: F401
+    from werkzeug.datastructures import Authorization, Headers  # noqa: F401
     from werkzeug.wrappers import Response as WerkzeugResponse
 
     from .app import Quart
@@ -49,11 +53,14 @@ FilePath = Union[bytes, str, os.PathLike]
 ResponseValue = Union[
     "Response",
     "WerkzeugResponse",
-    AnyStr,
+    bytes,
+    str,
     Mapping[str, Any],  # any jsonify-able dict
     List[Any],  # any jsonify-able list
-    AsyncGenerator[AnyStr, None],
-    Generator[AnyStr, None, None],
+    AsyncIterator[bytes],
+    AsyncIterator[str],
+    Iterator[bytes],
+    Iterator[str],
 ]
 StatusCode = int
 
@@ -62,7 +69,9 @@ HeaderName = str
 HeaderValue = Union[str, List[str], Tuple[str, ...]]
 
 # the possible types for HTTP headers
-HeadersValue = Union["Headers", Dict[HeaderName, HeaderValue], List[Tuple[HeaderName, HeaderValue]]]
+HeadersValue = Union[
+    "Headers", Mapping[HeaderName, HeaderValue], Sequence[Tuple[HeaderName, HeaderValue]]
+]
 
 # The possible types returned by a route function.
 ResponseReturnValue = Union[
@@ -72,14 +81,16 @@ ResponseReturnValue = Union[
     Tuple[ResponseValue, StatusCode, HeadersValue],
 ]
 
+ResponseTypes = Union["Response", "WerkzeugResponse"]
+
 AppOrBlueprintKey = Optional[str]  # The App key is None, whereas blueprints are named
 AfterRequestCallable = Union[
-    Callable[["Response"], "Response"], Callable[["Response"], Awaitable["Response"]]
+    Callable[[ResponseTypes], ResponseTypes], Callable[[ResponseTypes], Awaitable[ResponseTypes]]
 ]
 AfterServingCallable = Union[Callable[[], None], Callable[[], Awaitable[None]]]
 AfterWebsocketCallable = Union[
-    Callable[["Response"], Optional["Response"]],
-    Callable[["Response"], Awaitable[Optional["Response"]]],
+    Callable[[ResponseTypes], Optional[ResponseTypes]],
+    Callable[[ResponseTypes], Awaitable[Optional[ResponseTypes]]],
 ]
 BeforeFirstRequestCallable = Union[Callable[[], None], Callable[[], Awaitable[None]]]
 BeforeRequestCallable = Union[
@@ -219,12 +230,16 @@ class TestClientProtocol(Protocol):
         headers: Optional[Union[dict, Headers]] = None,
         data: Optional[AnyStr] = None,
         form: Optional[dict] = None,
+        files: Optional[Dict[str, FileStorage]] = None,
         query_string: Optional[dict] = None,
-        json: Any = None,
+        json: Any,
         scheme: str = "http",
         follow_redirects: bool = False,
         root_path: str = "",
         http_version: str = "1.1",
+        scope_base: Optional[dict] = None,
+        auth: Optional[Union[Authorization, Tuple[str, str]]] = None,
+        subdomain: Optional[str] = None,
     ) -> Response:
         ...
 
@@ -238,6 +253,9 @@ class TestClientProtocol(Protocol):
         scheme: str = "http",
         root_path: str = "",
         http_version: str = "1.1",
+        scope_base: Optional[dict] = None,
+        auth: Optional[Union[Authorization, Tuple[str, str]]] = None,
+        subdomain: Optional[str] = None,
     ) -> TestHTTPConnectionProtocol:
         ...
 
@@ -251,6 +269,9 @@ class TestClientProtocol(Protocol):
         subprotocols: Optional[List[str]] = None,
         root_path: str = "",
         http_version: str = "1.1",
+        scope_base: Optional[dict] = None,
+        auth: Optional[Union[Authorization, Tuple[str, str]]] = None,
+        subdomain: Optional[str] = None,
     ) -> TestWebsocketConnectionProtocol:
         ...
 

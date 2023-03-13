@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import warnings
 from functools import partial
-from typing import AnyStr, cast, List, Optional, Set, TYPE_CHECKING, Union
+from typing import AnyStr, cast, List, Optional, Set, TYPE_CHECKING
 from urllib.parse import urlparse
 
 from hypercorn.typing import (
@@ -28,6 +28,7 @@ from werkzeug.wrappers import Response as WerkzeugResponse
 
 from .debug import traceback_response
 from .signals import websocket_received, websocket_sent
+from .typing import ResponseTypes
 from .utils import encode_headers
 from .wrappers import Request, Response, Websocket  # noqa: F401
 
@@ -88,11 +89,8 @@ class ASGIHTTPConnection:
     async def handle_request(self, request: Request, send: ASGISendCallable) -> None:
         try:
             response = await self.app.handle_request(request)
-        except Exception:
-            if self.app.propagate_exceptions:
-                response = await traceback_response()
-            else:
-                raise
+        except Exception as error:
+            response = await _handle_exception(self.app, error)
 
         if isinstance(response, Response) and response.timeout != Ellipsis:
             timeout = cast(Optional[float], response.timeout)
@@ -103,9 +101,7 @@ class ASGIHTTPConnection:
         except asyncio.TimeoutError:
             pass
 
-    async def _send_response(
-        self, send: ASGISendCallable, response: Union[Response, WerkzeugResponse]
-    ) -> None:
+    async def _send_response(self, send: ASGISendCallable, response: ResponseTypes) -> None:
         await send(
             cast(
                 HTTPResponseStartEvent,
@@ -205,11 +201,8 @@ class ASGIWebsocketConnection:
     async def handle_websocket(self, websocket: Websocket, send: ASGISendCallable) -> None:
         try:
             response = await self.app.handle_websocket(websocket)
-        except Exception:
-            if self.app.propagate_exceptions:
-                raise
-            else:
-                response = await traceback_response()
+        except Exception as error:
+            response = await _handle_exception(self.app, error)
 
         if response is not None and not self._accepted:
             if "websocket.http.response" in self.scope.get("extensions", {}):
@@ -355,3 +348,10 @@ def _raise_exceptions(tasks: Set[asyncio.Task]) -> None:
 
 def _convert_version(raw: str) -> List[int]:
     return list(map(int, raw.split(".")))
+
+
+async def _handle_exception(app: "Quart", error: Exception) -> Response:
+    if not app.testing and app.propagate_exceptions:
+        return await traceback_response(error)
+    else:
+        raise error

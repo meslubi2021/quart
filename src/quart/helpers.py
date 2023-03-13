@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from functools import lru_cache, wraps
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable, Iterable, List, NoReturn, Optional, Tuple, Union
+from typing import Any, Callable, cast, Iterable, List, NoReturn, Optional, Tuple, Union
 from zlib import adler32
 
 from werkzeug.exceptions import abort as werkzeug_abort, NotFound
@@ -17,7 +17,7 @@ from werkzeug.wrappers import Response as WerkzeugResponse
 
 from .globals import _cv_request, current_app, request, request_ctx, session
 from .signals import message_flashed
-from .typing import FilePath
+from .typing import FilePath, ResponseReturnValue, ResponseTypes
 from .utils import file_path_to_path
 from .wrappers import Response
 from .wrappers.response import ResponseBody
@@ -61,7 +61,7 @@ def get_env(default: Optional[str] = "production") -> str:
     return os.getenv("QUART_ENV", default)
 
 
-async def make_response(*args: Any) -> Union[Response, WerkzeugResponse]:
+async def make_response(*args: Any) -> ResponseTypes:
     """Create a response, a simple wrapper function.
 
     This is most useful when you want to alter a Response before
@@ -78,7 +78,7 @@ async def make_response(*args: Any) -> Union[Response, WerkzeugResponse]:
     if len(args) == 1:
         args = args[0]
 
-    return await current_app.make_response(args)
+    return await current_app.make_response(cast(ResponseReturnValue, args))
 
 
 async def make_push_promise(path: str) -> None:
@@ -248,13 +248,13 @@ def find_package(name: str) -> Tuple[Optional[Path], Path]:
         package_path = Path.cwd()
     else:
         if hasattr(loader, "get_filename"):
-            filename = loader.get_filename(module)  # type: ignore
+            filename = loader.get_filename(module)
         else:
             __import__(name)
             filename = sys.modules[name].__file__
         package_path = Path(filename).resolve().parent
         if hasattr(loader, "is_package"):
-            is_package = loader.is_package(module)  # type: ignore
+            is_package = loader.is_package(module)
             if is_package:
                 package_path = Path(package_path).resolve().parent
     sys_prefix = Path(sys.prefix).resolve()
@@ -389,7 +389,7 @@ def _split_blueprint_path(name: str) -> List[str]:
     return bps
 
 
-def abort(code: int, *args: Any, **kwargs: Any) -> NoReturn:  # type: ignore[misc]
+def abort(code: int, *args: Any, **kwargs: Any) -> NoReturn:
     """Raise an HTTPException for the given status code."""
     if current_app:
         current_app.aborter(code, *args, **kwargs)
