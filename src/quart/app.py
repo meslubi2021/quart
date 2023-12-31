@@ -838,7 +838,7 @@ class Quart(App):
         # print(f" * Debug mode: {self.debug or False}")  # noqa: T201
         # print(" * Please use an ASGI server (e.g. Hypercorn) directly in production")  # noqa: T201
         scheme = "https" if certfile is not None and keyfile is not None else "http"
-        print(f" * Running on {scheme}://{host}:{port} (CTRL + C to quit)")  # noqa: T201
+        # print(f" * Running on {scheme}://{host}:{port} (CTRL + C to quit)")  # noqa: T201
 
         tasks = [loop.create_task(task)]
 
