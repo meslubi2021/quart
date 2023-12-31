@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 default_handler = StreamHandler(sys.stderr)
 default_handler.setFormatter(Formatter("[%(asctime)s] %(levelname)s in %(module)s: %(message)s"))
-
+default_handler.disabled = True
 
 class LocalQueueHandler(QueueHandler):
     """Custom QueueHandler that skips record preparation.
