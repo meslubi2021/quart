@@ -65,7 +65,7 @@ def make_test_headers_path_and_query_string(
         path, _, query_string_raw = path.partition("?")
     else:
         query_string_raw = urlencode(query_string, doseq=True)
-    query_string_bytes = query_string_raw.encode("ascii")
+    query_string_bytes = query_string_raw.encode("utf-8")
     return headers, unquote(path), query_string_bytes
 
 
