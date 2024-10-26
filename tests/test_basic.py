@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from typing import AsyncGenerator, cast
 
 import pytest
 from werkzeug.wrappers import Response as WerkzeugResponse
 
 from quart import abort, jsonify, Quart, request, Response, ResponseReturnValue, url_for, websocket
+from quart.ctx import after_this_websocket
 from quart.testing import WebsocketResponseError
 
 
@@ -66,10 +68,22 @@ def app() -> Quart:
 
     @app.websocket("/ws/")
     async def ws() -> None:
+        app._BLAH = asyncio.Event()
         # async for message in websocket:
+        @after_this_websocket
+        def after(*args, **kwargs):
+            app._BLAH.set()
+
         while True:
-            message = await websocket.receive()
-            await websocket.send(message)
+            try:
+                message = await websocket.receive()
+                await websocket.send(message)
+                # IF I UNCOMMENT THIS THEN THE TEST PASSES
+                # break
+            except asyncio.CancelledError:
+                # IF I UNCOMMENT THIS THEN THE TEST PASSES
+                # break
+                raise
 
     @app.websocket("/ws/abort/")
     async def ws_abort() -> None:
@@ -202,6 +216,20 @@ async def test_websocket(app: Quart) -> None:
     async with test_client.websocket("/ws/") as test_websocket:
         await test_websocket.send(data)
         result = await test_websocket.receive()
+    assert cast(bytes, result) == data
+
+
+async def test_websocket_cleanup(app: Quart) -> None:
+    test_client = app.test_client()
+    data = b"bob"
+    async with test_client.websocket("/ws/") as test_websocket:
+        await test_websocket.send(data)
+        result = await test_websocket.receive()
+
+    # WE HANG HERE FOREVER IF after_this_websocket IS NOT CALLED
+    await app._BLAH.wait()
+    assert app._BLAH.is_set()
+
     assert cast(bytes, result) == data
 
 
