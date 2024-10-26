@@ -121,6 +121,7 @@ from .utils import (
     run_sync,
 )
 from .wrappers import BaseRequestWebsocket, Request, Response, Websocket
+from .datastructures import FileStorage
 
 try:
     from typing import ParamSpec
@@ -1253,6 +1254,7 @@ class Quart(App):
         send_push_promise: Callable[[str, Headers], Awaitable[None]] = no_op_push,
         data: AnyStr | None = None,
         form: dict | None = None,
+        files: dict[str, FileStorage] | None = None,
         json: Any = sentinel,
         root_path: str = "",
         http_version: str = "1.1",
@@ -1287,7 +1289,7 @@ class Quart(App):
             auth,
             subdomain,
         )
-        request_body, body_headers = make_test_body_with_headers(data=data, form=form, json=json)
+        request_body, body_headers = make_test_body_with_headers(data=data, form=form, json=json, files=files)
         headers.update(**body_headers)
         scope = make_test_scope(
             "http",
