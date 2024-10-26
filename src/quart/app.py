@@ -806,6 +806,9 @@ class Quart(App):
         shutdown_event = asyncio.Event()
 
         def _signal_handler(*_: Any) -> None:
+            for task in asyncio.all_tasks():
+                if task.get_coro().__name__ in ["handle_websocket", "handle_request"]:
+                    task.cancel()
             shutdown_event.set()
 
         for signal_name in {"SIGINT", "SIGTERM", "SIGBREAK"}:
