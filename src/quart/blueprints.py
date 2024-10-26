@@ -55,15 +55,18 @@ class Blueprint(SansioBlueprint):
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         super().__init__(*args, **kwargs)
 
-        self.cli = AppGroup()  # type: ignore[assignment]
+        self.cli = AppGroup()
         self.cli.name = self.name
 
-        self.after_websocket_funcs: t.Dict[
-            AppOrBlueprintKey, t.List[AfterWebsocketCallable]
-        ] = defaultdict(list)
-        self.before_websocket_funcs: t.Dict[
-            AppOrBlueprintKey, t.List[BeforeWebsocketCallable]
-        ] = defaultdict(list)
+        self.after_websocket_funcs: t.Dict[AppOrBlueprintKey, t.List[AfterWebsocketCallable]] = (
+            defaultdict(list)
+        )
+        self.before_websocket_funcs: t.Dict[AppOrBlueprintKey, t.List[BeforeWebsocketCallable]] = (
+            defaultdict(list)
+        )
+        self.teardown_websocket_funcs: dict[AppOrBlueprintKey, list[TeardownCallable]] = (
+            defaultdict(list)
+        )
 
     def get_send_file_max_age(self, filename: str | None) -> int | None:
         """Used by :func:`send_file` to determine the ``max_age`` cache
@@ -264,6 +267,27 @@ class Blueprint(SansioBlueprint):
         return func
 
     @setupmethod
+    def teardown_websocket(
+        self,
+        func: T_teardown,
+    ) -> T_teardown:
+        """Add a teardown websocket function.
+        This is designed to be used as a decorator, if used to
+        decorate a synchronous function, the function will be wrapped
+        in :func:`~quart.utils.run_sync` and run in a thread executor
+        (with the wrapped function returned). An example usage,
+        .. code-block:: python
+            @app.teardown_websocket
+            async def func():
+                ...
+        Arguments:
+            func: The teardown websocket function itself.
+            name: Optional blueprint key name.
+        """
+        self.teardown_websocket_funcs[None].append(func)
+        return func
+
+    @setupmethod
     def before_app_websocket(self, func: T_before_websocket) -> T_before_websocket:
         """Add a before websocket to the App.
 
@@ -279,7 +303,7 @@ class Blueprint(SansioBlueprint):
                 ...
 
         """
-        self.record_once(lambda state: state.app.before_websocket(func))
+        self.record_once(lambda state: state.app.before_websocket(func))  # type: ignore
         return func
 
     @setupmethod
@@ -297,7 +321,7 @@ class Blueprint(SansioBlueprint):
                 ...
 
         """
-        self.record_once(lambda state: state.app.before_serving(func))
+        self.record_once(lambda state: state.app.before_serving(func))  # type: ignore
         return func
 
     @setupmethod
@@ -315,7 +339,7 @@ class Blueprint(SansioBlueprint):
             def after():
                 ...
         """
-        self.record_once(lambda state: state.app.after_websocket(func))
+        self.record_once(lambda state: state.app.after_websocket(func))  # type: ignore
         return func
 
     @setupmethod
@@ -332,7 +356,7 @@ class Blueprint(SansioBlueprint):
             def after():
                 ...
         """
-        self.record_once(lambda state: state.app.after_serving(func))
+        self.record_once(lambda state: state.app.after_serving(func))  # type: ignore[attr-defined]
         return func
 
     @setupmethod
@@ -351,7 +375,7 @@ class Blueprint(SansioBlueprint):
                 ...  # Shutdown
 
         """
-        self.record_once(lambda state: state.app.while_serving(func))
+        self.record_once(lambda state: state.app.while_serving(func))  # type: ignore[attr-defined]
         return func
 
     @setupmethod
@@ -370,7 +394,7 @@ class Blueprint(SansioBlueprint):
             def teardown():
                 ...
         """
-        self.record_once(lambda state: state.app.teardown_websocket(func))
+        self.record_once(lambda state: state.app.teardown_websocket(func))  # type: ignore
         return func
 
     def _merge_blueprint_funcs(self, app: App, name: str) -> None:

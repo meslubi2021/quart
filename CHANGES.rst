@@ -1,3 +1,39 @@
+0.19.8 2024-10-25
+-----------------
+
+* Bugfix Fix missing check that caused the previous fix to raise an error. #366
+
+0.19.7 2024-10-25
+-----------------
+
+* Security Fix how ``max_form_memory_size`` is applied when parsing large
+  non-file fields. https://github.com/advisories/GHSA-q34m-jh98-gwm2
+
+0.19.6 2024-05-19
+-----------------
+
+* Bugfix use ContentRange in the right way. See issue #331.
+* Bugfix hold a strong reference to background tasks.
+* Bugfix avoid ResourceWarning in DataBody.__aiter__.
+
+0.19.5 2024-04-01
+-----------------
+
+* Bugfix DeprecationWarning from datetime.utcnow().
+* Bugfix ensure request files are closed.
+* Bugfix development restarting when commands are passed.
+* Restore teardown_websocket methods.
+* Correct the config_class type.
+* Allow kwargs to be passed to the test client (matches Flask API).
+
+0.19.4 2023-11-19
+-----------------
+
+* Bugfix program not closing on Ctrl+C in Windows.
+* Bugfix the typing for AfterWebsocket functions.
+* Improve the typing of the ensure_async method.
+* Add a shutdown event to the app.
+
 0.19.3 2023-10-04
 -----------------
 

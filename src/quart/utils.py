@@ -90,13 +90,6 @@ def run_sync_iterable(iterable: Generator[Any, None, None]) -> AsyncGenerator[An
     return _gen_wrapper()
 
 
-def is_coroutine_function(func: Any) -> bool:
-    # Python < 3.8 does not correctly determine partially wrapped
-    # coroutine functions are coroutine functions, hence the need for
-    # this to exist. Code taken from CPython.
-    return asyncio.iscoroutinefunction(func)
-
-
 def encode_headers(headers: Headers) -> list[tuple[bytes, bytes]]:
     return [(key.lower().encode(), value.encode()) for key, value in headers.items()]
 
@@ -152,14 +145,14 @@ def restart() -> None:
                 executable = str(script_path.with_suffix(".exe"))
             else:
                 # python run.py
-                args.append(str(script_path))
+                args = [str(script_path), *args]
         else:
             if script_path.is_file() and os.access(script_path, os.X_OK):
                 # hypercorn run:app --reload
                 executable = str(script_path)
             else:
                 # python run.py
-                args.append(str(script_path))
+                args = [str(script_path), *args]
     else:
         # Executed as a module e.g. python -m run
         module = script_path.stem

@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, AnyStr, Awaitable, Callable, Generator, NoReturn, overload
 
 from hypercorn.typing import HTTPScope
-from werkzeug.datastructures import CombinedMultiDict, Headers, MultiDict
+from werkzeug.datastructures import CombinedMultiDict, Headers, iter_multi_items, MultiDict
 from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, RequestTimeout
 
 from .base import BaseRequestWebsocket
@@ -187,18 +187,17 @@ class Request(BaseRequestWebsocket):
         return await self.get_data(as_text=False, parse_form_data=True)
 
     @overload
-    async def get_data(self, cache: bool, as_text: Literal[False], parse_form_data: bool) -> bytes:
-        ...
+    async def get_data(
+        self, cache: bool, as_text: Literal[False], parse_form_data: bool
+    ) -> bytes: ...
 
     @overload
-    async def get_data(self, cache: bool, as_text: Literal[True], parse_form_data: bool) -> str:
-        ...
+    async def get_data(self, cache: bool, as_text: Literal[True], parse_form_data: bool) -> str: ...
 
     @overload
     async def get_data(
         self, cache: bool = True, as_text: bool = False, parse_form_data: bool = False
-    ) -> AnyStr:
-        ...
+    ) -> AnyStr: ...
 
     async def get_data(
         self, cache: bool = True, as_text: bool = False, parse_form_data: bool = False
@@ -347,3 +346,7 @@ class Request(BaseRequestWebsocket):
             for value in self.headers.getlist(name):
                 headers.add(name, value)
         await self._send_push_promise(path, headers)
+
+    async def close(self) -> None:
+        for _key, value in iter_multi_items(self._files or ()):
+            value.close()

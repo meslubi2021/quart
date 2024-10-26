@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from flask.sessions import (  # noqa: F401
@@ -75,7 +75,7 @@ class SessionInterface:
         the browser stops accessing the app.
         """
         if session.permanent:
-            return datetime.utcnow() + app.permanent_session_lifetime
+            return datetime.now(timezone.utc) + app.permanent_session_lifetime
         else:
             return None
 
@@ -157,8 +157,9 @@ class SecureCookieSessionInterface(SessionInterface):
         cookie = request.cookies.get(self.get_cookie_name(app))
         if cookie is None:
             return self.session_class()
+        max_age = int(app.permanent_session_lifetime.total_seconds())
         try:
-            data = signer.loads(cookie, max_age=app.permanent_session_lifetime.total_seconds())
+            data = signer.loads(cookie, max_age=max_age)
             return self.session_class(data)
         except BadSignature:
             return self.session_class()
@@ -212,7 +213,7 @@ class SecureCookieSessionInterface(SessionInterface):
         val = self.get_signing_serializer(app).dumps(dict(session))
         response.set_cookie(
             name,
-            val,  # type: ignore
+            val,
             expires=expires,
             httponly=httponly,
             domain=domain,
